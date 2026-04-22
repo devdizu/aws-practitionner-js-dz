@@ -2,13 +2,23 @@ import { TableNames } from "../../model/constants";
 import { Product } from "../../model/product.interface";
 import {
   DynamoDBClient,
-  GetItemCommand,
   PutItemCommand,
   ScanCommand,
+  TransactGetItemsCommand,
 } from "@aws-sdk/client-dynamodb";
 import { randomUUID } from "crypto";
+import { ProductWithCount } from "../../model/products.model";
 
 const dynamoDB = new DynamoDBClient({ region: process.env.AWS_REGION });
+
+function mapDynamoDBItemToProduct(item: Record<string, any>): Product {
+  return {
+    id: item.id.S,
+    title: item.title.S,
+    description: item.description.S,
+    price: Number(item.price.N),
+  };
+}
 
 export function getProducts() {
   return dynamoDB.send(
@@ -16,49 +26,68 @@ export function getProducts() {
       TableName: TableNames.PRODUCTS,
     }),
   ).then((result) => {
-    return result.Items?.map((item) => ({
-      id: item.id.S,
-      title: item.title.S,
-      description: item.description.S,
-      price: Number(item.price.N),
-    })) as Product[];
+    return result.Items?.map((item) => mapDynamoDBItemToProduct(item)) as Product[];
   });
 }
 
-export async function getProductById(id: string) {
-  const result = await dynamoDB.send(
-    new GetItemCommand({
-      TableName: TableNames.PRODUCTS,
-      Key: {
-        id: { S: id },
-      },
+export async function getProductById(id: string): Promise<ProductWithCount> {
+  const { Responses } = await dynamoDB.send(
+    new TransactGetItemsCommand({
+      TransactItems: [
+        {
+          Get: {
+            TableName: TableNames.PRODUCTS,
+            Key: { id: { S: id } },
+          },
+        },
+        {
+          Get: {
+            TableName: TableNames.STOCK,
+            Key: { product_id: { S: id } },
+          },
+        },
+      ],
     }),
   );
 
-  if (!result.Item) {
+  const productItem = Responses?.[0]?.Item;
+  if (!productItem) {
     throw new Error(`Product with id ${id} not found`, { cause: { statusCode: 404 } });
   }
 
+  const stockItem = Responses?.[1]?.Item;
+
   return {
-    id: result.Item.id.S,
-    title: result.Item.title.S,
-    description: result.Item.description.S,
-    price: Number(result.Item.price.N),
-  } as Product;
+    ...mapDynamoDBItemToProduct(productItem),
+    count: Number(stockItem?.quantity?.N ?? 0),
+  } as ProductWithCount;
 }
 
 export async function createProduct(
   payload: Omit<Product, "id">,
 ): Promise<Product> {
-  if (!payload?.title || !payload?.description || typeof payload?.price !== "number") {
-    throw new Error("Invalid product payload", { cause: { statusCode: 400 } });
+  const title = payload?.title?.trim();
+  const description = payload?.description?.trim();
+  const price = payload?.price;
+
+  if (
+    !title ||
+    !description ||
+    typeof price !== "number" ||
+    Number.isNaN(price) ||
+    price <= 0
+  ) {
+    throw new Error(
+      "title, description and price are required, and price must be greater than 0",
+      { cause: { statusCode: 400 } },
+    );
   }
 
   const newProduct: Product = {
     id: randomUUID(),
-    title: payload.title,
-    description: payload.description,
-    price: payload.price,
+    title,
+    description,
+    price,
   };
 
   await dynamoDB.send(

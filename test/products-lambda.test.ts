@@ -34,7 +34,7 @@ describe("products handler", () => {
   });
 
   test("returns one product when event.id is provided", async () => {
-    const product = { id: "2", title: "Adidas tee", description: "Comfortable tee", price: 20 };
+    const product = { id: "2", title: "Adidas tee", description: "Comfortable tee", price: 20, count: 5 };
     mockedGetProductById.mockResolvedValue(product);
 
     const result = await main({ id: "2" });
@@ -45,7 +45,7 @@ describe("products handler", () => {
   });
 
   test("returns one product when pathParameters.id is provided", async () => {
-    const product = { id: "3", title: "Puma shorts", description: "Stylish shorts", price: 30 };
+    const product = { id: "3", title: "Puma shorts", description: "Stylish shorts", price: 30, count: 8 };
     mockedGetProductById.mockResolvedValue(product);
 
     const result = await main({ pathParameters: { id: "3" } });
@@ -56,9 +56,13 @@ describe("products handler", () => {
 
   test("propagates service errors for invalid ids", async () => {
     const error = new Error("Product with id 999 not found");
+    (error as Error & { cause?: { statusCode: number } }).cause = { statusCode: 404 };
     mockedGetProductById.mockRejectedValue(error);
 
-    await expect(main({ id: "999" })).rejects.toThrow("Product with id 999 not found");
+    await expect(main({ id: "999" })).resolves.toEqual({
+      statusCode: 404,
+      message: "Product with id 999 not found",
+    });
     expect(mockedGetProductById).toHaveBeenCalledWith("999");
   });
 

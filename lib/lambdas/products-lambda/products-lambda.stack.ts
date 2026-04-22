@@ -17,7 +17,16 @@ export class ProductsLambdaStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(5),
       handler: "lambdas/products-lambda/handler.main",
       code: lambda.Code.fromAsset(path.join(__dirname, "../../"), {
-        exclude: ["node_modules", ".git", "*.md", "test", "bin", "cdk.out", ".gitignore"],
+        exclude: [
+          "node_modules",
+          ".git",
+          "*.md",
+          "test",
+          "bin",
+          "cdk.out",
+          ".gitignore",
+          "lib/db",
+        ],
       }),
     });
 
@@ -26,6 +35,7 @@ export class ProductsLambdaStack extends cdk.Stack {
         actions: ["dynamodb:GetItem", "dynamodb:Scan", "dynamodb:PutItem"],
         resources: [
           `arn:aws:dynamodb:${this.region}:${this.account}:table/${TableNames.PRODUCTS}`,
+          `arn:aws:dynamodb:${this.region}:${this.account}:table/${TableNames.STOCK}`,
         ],
       }),
     );
