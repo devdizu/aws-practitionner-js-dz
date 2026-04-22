@@ -1,0 +1,61 @@
+openapi: 3.0.3
+info:
+  title: Products API
+  version: 1.0.0
+  description: API to retrieve products and a product by id.
+servers:
+  - url: /dev
+    description: API Gateway stage dev
+paths:
+  /products:
+    get:
+      summary: List products
+      operationId: getProducts
+      responses:
+        '200':
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+  /products/{id}:
+    get:
+      summary: Get product by id
+      operationId: getProductById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Product identifier
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Product found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Product not found
+components:
+  schemas:
+    Product:
+      type: object
+      required:
+        - id
+        - name
+        - price
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Nike shoes
+        price:
+          type: number
+          example: 10
