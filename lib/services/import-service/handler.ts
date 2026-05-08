@@ -157,7 +157,7 @@ export async function create(event: any) {
         cause: { statusCode: 500 },
       });
     }
-    const objectKey = `uploaded/${filename}.csv`;
+    const objectKey = `uploaded/${filename}`;
 
     const putCommand = new PutObjectCommand({
       Bucket: bucketName,

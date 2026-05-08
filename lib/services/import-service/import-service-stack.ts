@@ -2,6 +2,7 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as cdk from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as path from "path";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
@@ -15,6 +16,15 @@ export class ImportServiceStack extends cdk.Stack {
     const importServiceBucket = new s3.Bucket(this, "ImportServiceBucket", {
       versioned: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      cors: [
+        {
+          allowedOrigins: ["http://localhost:3000", "http://localhost:4200", "http://localhost:5173"],
+          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
+          allowedHeaders: ["*"],
+          exposedHeaders: ["ETag"],
+          maxAge: 3000,
+        },
+      ],
     });
 
     new s3deploy.BucketDeployment(this, "SeedUploadedFolder", {
@@ -23,45 +33,23 @@ export class ImportServiceStack extends cdk.Stack {
       prune: false,
     });
 
-    const importProductsFileLambda = new lambda.Function(this, "importProductsFile", {
+    const importProductsFileLambda = new NodejsFunction(this, "importProductsFile", {
       runtime: lambda.Runtime.NODEJS_22_X,
       memorySize: 1024,
       timeout: cdk.Duration.seconds(5),
-      handler: "services/import-service/handler.create",
-      code: lambda.Code.fromAsset(path.join(__dirname, "../../"), {
-        exclude: [
-          "node_modules",
-          ".git",
-          "*.md",
-          "test",
-          "bin",
-          "cdk.out",
-          ".gitignore",
-          "lib/db",
-        ],
-      }),
+      entry: path.join(__dirname, "handler.ts"),
+      handler: "create",
       environment: {
         IMPORT_SERVICE_BUCKET: importServiceBucket.bucketName,
       },
     });
 
-    const importFileParserLambda = new lambda.Function(this, "importFileParser", {
+    const importFileParserLambda = new NodejsFunction(this, "importFileParser", {
       runtime: lambda.Runtime.NODEJS_22_X,
       memorySize: 1024,
       timeout: cdk.Duration.seconds(5),
-      handler: "services/import-service/handler.parse",
-      code: lambda.Code.fromAsset(path.join(__dirname, "../../"), {
-        exclude: [
-          "node_modules",
-          ".git",
-          "*.md",
-          "test",
-          "bin",
-          "cdk.out",
-          ".gitignore",
-          "lib/db",
-        ],
-      }),
+      entry: path.join(__dirname, "handler.ts"),
+      handler: "parse",
       environment: {
         IMPORT_SERVICE_BUCKET: importServiceBucket.bucketName,
       },
