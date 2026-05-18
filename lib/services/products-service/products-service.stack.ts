@@ -7,15 +7,15 @@ import * as path from "path";
 import { Construct } from "constructs";
 import { TableNames } from "../../model/constants";
 
-export class ProductsLambdaStack extends cdk.Stack {
+export class ProductsServiceStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     const lambdaFunction = new lambda.Function(this, "lambda-function", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       memorySize: 1024,
       timeout: cdk.Duration.seconds(5),
-      handler: "lambdas/products-lambda/handler.main",
+      handler: "services/products-service/handler.main",
       code: lambda.Code.fromAsset(path.join(__dirname, "../../"), {
         exclude: [
           "node_modules",

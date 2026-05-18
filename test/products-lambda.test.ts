@@ -1,11 +1,11 @@
-import { main } from "../lib/lambdas/products-lambda/handler";
+import { main } from "../lib/services/products-service/handler";
 import {
   createProduct,
   getProductById,
   getProducts,
-} from "../lib/lambdas/products-lambda/products.service";
+} from "../lib/services/products-service/products.service";
 
-jest.mock("../lib/lambdas/products-lambda/products.service", () => ({
+jest.mock("../lib/services/products-service/products.service", () => ({
   createProduct: jest.fn(),
   getProductById: jest.fn(),
   getProducts: jest.fn(),
