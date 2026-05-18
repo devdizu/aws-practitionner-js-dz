@@ -18,7 +18,7 @@ export class ImportServiceStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       cors: [
         {
-          allowedOrigins: ["http://localhost:3000", "http://localhost:4200", "http://localhost:5173"],
+          allowedOrigins: ["http://localhost:3000", "https://d26p6ckbxp00ir.cloudfront.net"],
           allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
           allowedHeaders: ["*"],
           exposedHeaders: ["ETag"],
