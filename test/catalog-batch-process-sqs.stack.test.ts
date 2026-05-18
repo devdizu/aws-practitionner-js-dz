@@ -1,7 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Template, Match } from "aws-cdk-lib/assertions";
 import * as sns from "aws-cdk-lib/aws-sns";
-import { CatalogBatchProcessSqsStack } from "../lib/stacks/catalog-batch-process-sqs/catalog-batch-process-sqs.stack";
+import { CatalogBatchProcessSqsStack } from "../lib/stacks/products-service/catalog-batch-process-sqs/catalog-batch-process-sqs.stack";
 
 describe("CatalogBatchProcessSqsStack", () => {
   let app: cdk.App;
