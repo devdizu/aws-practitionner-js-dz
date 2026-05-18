@@ -7,10 +7,15 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as path from "path";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
+import * as sqs from "aws-cdk-lib/aws-sqs";
 import { Construct } from "constructs";
 
+interface ImportServiceStackProps extends cdk.StackProps {
+  catalogItemsQueue: sqs.IQueue;
+}
+
 export class ImportServiceStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: ImportServiceStackProps) {
     super(scope, id, props);
 
     const importServiceBucket = new s3.Bucket(this, "ImportServiceBucket", {
@@ -52,6 +57,7 @@ export class ImportServiceStack extends cdk.Stack {
       handler: "parse",
       environment: {
         IMPORT_SERVICE_BUCKET: importServiceBucket.bucketName,
+        CATALOG_ITEMS_QUEUE_URL: props.catalogItemsQueue.queueUrl,
       },
     });
 
@@ -77,6 +83,8 @@ export class ImportServiceStack extends cdk.Stack {
         resources: [`${importServiceBucket.bucketArn}/*`],
       }),
     );
+
+    props.catalogItemsQueue.grantSendMessages(importFileParserLambda);
 
     // Add S3 event notification trigger to parse imported files (s3:ObjectCreated:*)
     importServiceBucket.addEventNotification(
