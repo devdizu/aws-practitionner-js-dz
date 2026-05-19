@@ -12,6 +12,7 @@ import { Construct } from "constructs";
 
 interface ImportServiceStackProps extends cdk.StackProps {
   catalogItemsQueue: sqs.IQueue;
+  basicAuthorizerFunction: lambda.IFunction;
 }
 
 export class ImportServiceStack extends cdk.Stack {
@@ -163,6 +164,37 @@ export class ImportServiceStack extends cdk.Stack {
       },
     });
 
+    api.addGatewayResponse("default-4xx-cors-response", {
+      type: apigateway.ResponseType.DEFAULT_4XX,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+        "Access-Control-Allow-Headers": "'*'",
+        "Access-Control-Allow-Methods": "'GET,POST,OPTIONS'",
+      },
+    });
+
+    api.addGatewayResponse("default-5xx-cors-response", {
+      type: apigateway.ResponseType.DEFAULT_5XX,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+        "Access-Control-Allow-Headers": "'*'",
+        "Access-Control-Allow-Methods": "'GET,POST,OPTIONS'",
+      },
+    });
+
+    const authorizerInvokeRole = new iam.Role(this, "import-api-authorizer-invoke-role", {
+      assumedBy: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+    });
+
+    props.basicAuthorizerFunction.grantInvoke(authorizerInvokeRole);
+
+    const importApiAuthorizer = new apigateway.TokenAuthorizer(this, "import-api-authorizer", {
+      handler: props.basicAuthorizerFunction,
+      identitySource: apigateway.IdentitySource.header("Authorization"),
+      assumeRole: authorizerInvokeRole,
+      resultsCacheTtl: cdk.Duration.seconds(0),
+    });
+
     const preflightOptions: apigateway.CorsOptions = {
       allowOrigins: apigateway.Cors.ALL_ORIGINS,
       allowMethods: ["GET", "POST"],
@@ -172,6 +204,8 @@ export class ImportServiceStack extends cdk.Stack {
     const importResource = api.root.addResource("import");
     const fileNameResource = importResource.addResource("{filename}");
     fileNameResource.addMethod("GET", postLambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.CUSTOM,
+      authorizer: importApiAuthorizer,
       requestParameters: {
         "method.request.path.filename": true,
       },
