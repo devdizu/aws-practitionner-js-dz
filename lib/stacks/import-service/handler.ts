@@ -7,6 +7,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "stream";
 import csv from "csv-parser";
@@ -14,6 +15,7 @@ import type { Product } from "../../model/products.model";
 import { logRequest } from "../../util/logger.service";
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION });
+const sqsClient = new SQSClient({ region: process.env.AWS_REGION });
 
 type ProductCsvInput = Omit<Product, "id">;
 
@@ -21,6 +23,32 @@ type S3ObjectLocation = {
   bucket: string;
   key: string;
 };
+
+function getCatalogItemsQueueUrl(): string {
+  const queueUrl = process.env.CATALOG_ITEMS_QUEUE_URL;
+  if (!queueUrl) {
+    throw new Error("CATALOG_ITEMS_QUEUE_URL is not configured", {
+      cause: { statusCode: 500 },
+    });
+  }
+
+  return queueUrl;
+}
+
+async function sendProductToCatalogQueue(productRow: ProductCsvInput): Promise<void> {
+  const queueUrl = getCatalogItemsQueueUrl();
+  const payload = {
+    ...productRow,
+    price: Number(productRow.price),
+  };
+
+  await sqsClient.send(
+    new SendMessageCommand({
+      QueueUrl: queueUrl,
+      MessageBody: JSON.stringify(payload),
+    }),
+  );
+}
 
 function validateProductCsvRow(
   row: Record<string, unknown>,
@@ -77,35 +105,44 @@ async function parseS3Object(bucket: string, key: string): Promise<void> {
   await new Promise((resolve, reject) => {
     let rowCount = 0;
     const invalidRows: string[] = [];
+    const enqueueJobs: Promise<void>[] = [];
 
     stream
       .pipe(csv())
       .on("data", (row: any) => {
         rowCount++;
-        const validation = validateProductCsvRow(row as ProductCsvInput);
+        const productRow = row as ProductCsvInput;
+        const validation = validateProductCsvRow(productRow);
 
         if (!validation.isValid) {
           invalidRows.push(
             `Row ${rowCount}: ${validation.errors.join(", ")}`,
           );
-        }
-
-        console.log(`[Row ${rowCount}]`, JSON.stringify(row));
-      })
-      .on("end", () => {
-        if (invalidRows.length > 0) {
-          const validationError =
-            `CSV validation failed for ${key}. ` +
-            `Invalid rows: ${invalidRows.join(" | ")}`;
-          console.error(validationError);
-          reject(new Error(validationError));
           return;
         }
 
-        console.log(
-          `File processing completed: ${rowCount} rows parsed from ${key}`
-        );
-        resolve(undefined);
+        enqueueJobs.push(sendProductToCatalogQueue(productRow));
+        console.log(`[Row ${rowCount}]`, JSON.stringify(productRow));
+      })
+      .on("end", async () => {
+        try {
+          if (invalidRows.length > 0) {
+            const validationError =
+              `CSV validation failed for ${key}. ` +
+              `Invalid rows: ${invalidRows.join(" | ")}`;
+            console.error(validationError);
+            reject(new Error(validationError));
+            return;
+          }
+
+          await Promise.all(enqueueJobs);
+          console.log(
+            `File processing completed: ${rowCount} rows parsed from ${key}`
+          );
+          resolve(undefined);
+        } catch (error) {
+          reject(error);
+        }
       })
       .on("error", (error: Error) => {
         console.error(`Error parsing CSV from ${key}:`, error.message);
