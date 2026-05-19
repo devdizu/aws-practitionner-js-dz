@@ -12,6 +12,7 @@ import { Construct } from "constructs";
 
 interface ImportServiceStackProps extends cdk.StackProps {
   catalogItemsQueue: sqs.IQueue;
+  basicAuthorizerFunction: lambda.IFunction;
 }
 
 export class ImportServiceStack extends cdk.Stack {
@@ -163,6 +164,19 @@ export class ImportServiceStack extends cdk.Stack {
       },
     });
 
+    const authorizerInvokeRole = new iam.Role(this, "import-api-authorizer-invoke-role", {
+      assumedBy: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+    });
+
+    props.basicAuthorizerFunction.grantInvoke(authorizerInvokeRole);
+
+    const importApiAuthorizer = new apigateway.TokenAuthorizer(this, "import-api-authorizer", {
+      handler: props.basicAuthorizerFunction,
+      identitySource: apigateway.IdentitySource.header("Authorization"),
+      assumeRole: authorizerInvokeRole,
+      resultsCacheTtl: cdk.Duration.seconds(0),
+    });
+
     const preflightOptions: apigateway.CorsOptions = {
       allowOrigins: apigateway.Cors.ALL_ORIGINS,
       allowMethods: ["GET", "POST"],
@@ -172,6 +186,8 @@ export class ImportServiceStack extends cdk.Stack {
     const importResource = api.root.addResource("import");
     const fileNameResource = importResource.addResource("{filename}");
     fileNameResource.addMethod("GET", postLambdaIntegration, {
+      authorizationType: apigateway.AuthorizationType.CUSTOM,
+      authorizer: importApiAuthorizer,
       requestParameters: {
         "method.request.path.filename": true,
       },
