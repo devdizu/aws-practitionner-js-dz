@@ -164,6 +164,24 @@ export class ImportServiceStack extends cdk.Stack {
       },
     });
 
+    api.addGatewayResponse("default-4xx-cors-response", {
+      type: apigateway.ResponseType.DEFAULT_4XX,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+        "Access-Control-Allow-Headers": "'*'",
+        "Access-Control-Allow-Methods": "'GET,POST,OPTIONS'",
+      },
+    });
+
+    api.addGatewayResponse("default-5xx-cors-response", {
+      type: apigateway.ResponseType.DEFAULT_5XX,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+        "Access-Control-Allow-Headers": "'*'",
+        "Access-Control-Allow-Methods": "'GET,POST,OPTIONS'",
+      },
+    });
+
     const authorizerInvokeRole = new iam.Role(this, "import-api-authorizer-invoke-role", {
       assumedBy: new iam.ServicePrincipal("apigateway.amazonaws.com"),
     });
